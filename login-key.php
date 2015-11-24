@@ -43,17 +43,12 @@ if (isset($_FILES['fileToUpload'])) {
             );
             $blogusers = get_users($args);
             // Array of WP_User objects.
-            foreach ($blogusers as $user) {
-            }
-
-
+            foreach ($blogusers as $user) {  }
             $user_by_key = get_user_by('login', $user->user_login); //change this later to be a cypher-key. It will search for a ACF of the user
 
             if ($user_by_key == false) {
                 $errmsg = "Your key has expired or has been renewed. Login and obtain a new key. ";
             } else {
-                // echo $user_by_key->user_login;
-                //$errmsg = "Authentication was fired (" . isset($_FILES['fileToUpload']) . ")(" . isset($_FILES['fileToUpload']['tmp_name']) . ") [" . $filecont . "]";
                 add_filter('authenticate', 'oauth_authenticate');
             }
         }
@@ -71,11 +66,14 @@ if (isset($_FILES['fileToUpload'])) {
  */
 function login_key_display_funct(){
 
-    //add our js
-    wp_enqueue_script('login_key_core', plugins_url('/js/jquery.login_key.js', __FILE__));
+    if ( is_user_logged_in() ){
+        //add our js
+        //add_action( 'wp_enqueue_scripts', 'login_key_scripts' );
+        login_key_scripts();
 
-    $output = '<script>var base="' . site_url() . '";</script>';
-    echo $output . '<div id="uk_holder"><div id="uk">Manage my user key</div><div id="uk_display"></div></div>';
+        $output = '<script>var base="' . site_url() . '";</script>';
+        echo $output . '<div id="uk_holder"><div id="uk">Manage my user key</div><div id="uk_display"></div></div>';
+    }
 }
 add_shortcode('login_key_display','login_key_display_funct');
 
@@ -138,94 +136,87 @@ function login_key_generate_funct(){
 
         if (is_user_logged_in()) {
 
-                        //create user key if none found
-                        //$current_user = wp_get_current_user();
+        //create user key if none found
 
-                        // wp_update_user() or update_user_meta().  update_user_meta( $user_id, $meta_key, $meta_value, $prev_value )
-                        $userkey = get_user_option('user_key');
+        // wp_update_user() or update_user_meta().  update_user_meta( $user_id, $meta_key, $meta_value, $prev_value )
+        $userkey = get_user_option('user_key');
 
-                        if($userkey == ''){
-                            update_user_meta( get_current_user_id(), 'user_key', generatekey()  );
-                            $userkey = get_user_option('user_key');
-                        }
+        if($userkey == ''){
+            update_user_meta( get_current_user_id(), 'user_key', generatekey()  );
+            $userkey = get_user_option('user_key');
+        }
 
-                        if(isset($_POST['action_lk'])) {
+        if(isset($_POST['action_lk'])) {
 
-                            $action_lk = $_POST['action_lk'] ;
-                            $msg = '';
-                            if ( $action_lk == 'gui') {
-                                //default behaviour below
-                            }elseif ( $action_lk == 'makekey') {
-                                //reset key
-                                $new_key = generatekey() ;
+            $action_lk = $_POST['action_lk'] ;
+            $msg = '';
+            if ( $action_lk == 'gui') {
+                //default behaviour below
+            }elseif ( $action_lk == 'makekey') {
+                //reset key
+                $new_key = generatekey() ;
 
-                                //check if key already exists
-                                $args = array(
-                                    'meta_key'     => 'user_key',
-                                    'meta_value'   => $new_key
-                                );
-                                $blogusers = get_users( $args );
+                //check if key already exists
+                $args = array(
+                    'meta_key'     => 'user_key',
+                    'meta_value'   => $new_key
+                );
+                $blogusers = get_users( $args );
 
-                                // Array of WP_User objects.
-                                if(count($blogusers)!=0){
-                                    //the key exists, so stop
-                                    $msg = '<p>Key reset duplication error. Please try again.</p>';
-                                }else {
-                                    update_user_meta(get_current_user_id(), 'user_key', generatekey());
-                                    $userkey = get_user_option('user_key');
-                                    $msg = '<p id="alert_me" style="display: none">Key has been reset. Download it or have it sent to your email account.</p>';
-                                }
-                            }
-                            if ( $action_lk == 'sendkey') {
-                                //email or send key to user
+                // Array of WP_User objects.
+                if(count($blogusers)!=0){
+                    //the key exists, so stop
+                    $msg = '<p>Key reset duplication error. Please try again.</p>';
+                }else {
+                    update_user_meta(get_current_user_id(), 'user_key', generatekey());
+                    //$userkey = get_user_option('user_key');
+                    $msg = '<p id="alert_me" style="display: none">Key has been reset. Download it or have it sent to your email account.</p>';
+                }
+            }
+            if ( $action_lk == 'sendkey') {
+                //email or send key to user
 
-                                //SECURITY??
-                                $from = $current_user->user_email ;
-                             //   $headers[] = 'From: ' . $from;
-                                $headers[] = 'From: access@crowna.com' ;
-                                $to = $from;
-                                $subject = "P4H-Network";
-                                //   $message = str_replace('$b$', "\n", $_POST['msg']);
-                                $message = 'Hello '.$current_user->user_nicename.',
+                //SECURITY??
+                $from = $current_user->user_email ;
+                $headers[] = 'From: ' . $from;
+                //$headers[] = 'From: access@crowna.com' ;
+                $to = $from;
+                $subject = get_bloginfo('name') ;
+                //   $message = str_replace('$b$', "\n", $_POST['msg']);
+                $message = 'Hello '.$current_user->user_nicename.',
 
-                            this email contains your key as an attachment.
-                            It was generated by http://intranet.p4h-network.net/profile/
+                ';
+                $message .= '    this email contains your key as an attachment.
+                ';
+                $message .= '    It was generated by the page '. $_SERVER['HTTP_REFERER'] .'
 
-                            P4H Intranet System.' .plugin_dir_path( __FILE__ ).'tmp/';
+' ;
+                $message .= 'Have a nice day.';
 
-                                //attachment required
-                                //fit content to file
-                                //$userkey = get_user_option('user_key');
+                $message = apply_filters('login_key_email_message', $message );
 
-                                textWriter( get_user_option('user_key') ,"key.p4h", 'no',true); //writes from beginning
+                //attachment required
+                //fit content to file
 
-                                //   $result = wp_mail($to, $subject, $message, $headers,  get_stylesheet_directory().'/key.p4h');
-                                   $result = wp_mail($to, $subject, $message, $headers,  plugin_dir_path( __FILE__ ).'tmp/key.p4h' );
-                               // wp_mail( 'jeremy.crowe@crowna.co.nz', 'The subject', 'The message' );
-                              //  $result = wp_mail($to, $subject, $message, $headers);
-                              //  $result="";
-                                //delete file content
+                textWriter ( get_user_option('user_key') ,"key.p4h", 'no',true); //writes from beginning
 
-                                textWriter( '-empty-' ,"key.p4h", 'no',true); //writes from beginning
+                $result = wp_mail($to, $subject, $message, $headers,  plugin_dir_path( __FILE__ ).'tmp/key.p4h' );
 
-
-                                //   echo '<p>'.$to . $subject . $messag . $headers.'<br>'.print_r($current_user,false).'</p><a title="Close me" id="close_me" onclick="close_ele(\'uk_display\')">(x)</a><div>Email Sent</div>';
-                                echo '<a title="Close me" id="close_me" onclick="close_ele(\'uk_display\')">(x)</a><div>Email Sent '.$result.'</div>';
-                            } else {
-                                echo '<a title="Close me" id="close_me"  onclick="close_ele(\'uk_display\');" >(x)</a><div><button id="key_make">Reset key</button><br><button onclick="document.location=\'' . plugins_url( 'user_key_get.php', __FILE__ )  . '\';">Download key</button><br><button id="key_mail">Email key</button><br>'.$msg.'</div>';
-                                //echo '<div>Like boo man!</div>';
-                            }
-                        }
-
-                    }else {
-                        echo "no access ";
-                    }
+                //delete file content
+                textWriter ( '-empty-' ,"key.p4h", 'no',true); //writes from beginning
 
 
+                //   echo '<p>'.$to . $subject . $messag . $headers.'<br>'.print_r($current_user,false).'</p><a title="Close me" id="close_me" onclick="close_ele(\'uk_display\')">(x)</a><div>Email Sent</div>';
+                echo '<a title="Close me" id="close_me" onclick="close_ele(\'uk_display\')">(x)</a><div>Email Sent '.$result.'</div>';
+            } else {
+                echo '<a title="Close me" id="close_me"  onclick="close_ele(\'uk_display\');" >(x)</a><div><button id="key_make">Reset key</button><br><button onclick="document.location=\'' . plugins_url( 'user_key_get.php', __FILE__ )  . '\';">Download key</button><br><button id="key_mail">Email key</button><br>'.$msg.'</div>';
+                //echo '<div>Like boo man!</div>';
+            }
+        }
 
-
-
-
+    }else {
+        echo "no access ";
+    }
 }
 add_action('wp_ajax_login_key_generate','login_key_generate_funct' );
 
@@ -282,4 +273,10 @@ function textWriter($content, $filename="errorlog.txt",$sl='yes',$atstart=false)
     $res1=fwrite( $fp , $content );
     $res2=fclose( $fp );
     return true;
+}
+
+function login_key_scripts() {
+    //add our css
+    wp_enqueue_style('login_key_css', plugins_url('/css/login_key.css', __FILE__));
+    wp_enqueue_script('login_key_core', plugins_url('/js/jquery.login_key.js', __FILE__));
 }
