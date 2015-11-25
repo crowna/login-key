@@ -18,18 +18,20 @@ include_once('../../../wp-config.php');
 $filename = 'key.p4h';
 header("Cache-Control: public");
 header("Content-Description: File Transfer");
-//header("Content-Length: ". filesize("$filename").";");
 header("Content-Disposition: attachment; filename=$filename");
 header("Content-Type: application/octet-stream; ");
 header("Content-Transfer-Encoding: binary");
 
-if (is_user_logged_in()) {
-
-    $userkey = get_user_option('user_key');
-
-    echo $userkey ;
-
-}else {
-    echo "no access";
+$uk_other = $_GET['uk_other'] ;
+$user = wp_get_current_user() ;
+if ( is_numeric( $uk_other ) && $uk_other !== false ){
+    $user = get_userdata( $uk_other );
 }
-?>
+
+if (is_user_logged_in()) {
+    $userkey = apply_filters('get_login_key_userkey',  get_user_option('user_key', $user->ID ));
+    echo  $userkey ;
+}else {
+    $no_access = apply_filters('get_login_key_no_access',  "no access" ); //note default behaviour relies on this for frontend user response
+    echo $no_access ;
+}

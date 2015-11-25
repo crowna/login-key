@@ -25,6 +25,25 @@ Author URI: http://crowna.co.nz/
  */
 
 
+
+//---------------------------------------//
+function  login_key_backend_display_funct() {
+    $uk_other = isset($_GET['user_id']) ? $_GET['user_id'] : wp_get_current_user()->ID ;
+    $add_script =  wp_get_current_user()->ID != $uk_other ? '(function($) {$("#uk").text("Manage user\'s key");})(jQuery);var other=true;' : '';
+    echo '<div id="uk_backend">' . login_key_display_funct( $uk_other ) . '</div><script>uk_other = ' . $uk_other . '; '.$add_script.'</script>';
+}
+function  login_key_others_display_funct() {
+    $uk_other = isset($_GET['user_id']) ? $_GET['user_id'] : wp_get_current_user()->ID ;
+    echo '<div id="uk_backend">' . login_key_display_funct( false ) .'</div><script>(function($) {$("#uk").text("Manage user\'s key");})(jQuery);uk_other = ' . $uk_other . '; </script>';
+}
+
+add_action('personal_options', 'login_key_backend_display_funct');
+//add_action('show_user_profile', 'login_key_self_display_funct');
+//add_action('edit_user_profile', 'login_key_others_display_funct');
+
+
+
+
 /**
  * one-off authentication method  #### DON'T DELETE JEREMY
  *
@@ -32,8 +51,12 @@ Author URI: http://crowna.co.nz/
  *  -  file processing
  */
 if (isset($_FILES['fileToUpload'])) {
-    $filecont = cleanMe(file_get_contents($_FILES['fileToUpload']['tmp_name']));
+
+    $filecont = cleanMe( file_get_contents($_FILES['fileToUpload']['tmp_name']) );
+
+    $errmsg = "Message not set";
     if (strpbrk($filecont, '\%') === false ) {
+       // $errmsg = "<br>Good start, continue (".print_r(file_get_contents($_FILES['fileToUpload']['tmp_name']),true).")";
         if($filecont != "" ) {
             $errmsg = "<br>Good string, continue";
 
@@ -42,21 +65,24 @@ if (isset($_FILES['fileToUpload'])) {
                 'meta_value' => $filecont
             );
             $blogusers = get_users($args);
+
             // Array of WP_User objects.
             foreach ($blogusers as $user) {  }
-            $user_by_key = get_user_by('login', $user->user_login); //change this later to be a cypher-key. It will search for a ACF of the user
-
+           // $user_by_key = get_user_by('login', $user->user_login); //change this later to be a cypher-key. It will search for a ACF of the user
+            $user_by_key = $user ;
             if ($user_by_key == false) {
                 $errmsg = "Your key has expired or has been renewed. Login and obtain a new key. ";
             } else {
                 add_filter('authenticate', 'oauth_authenticate');
+                $errmsg = "It is trying to run.";
             }
         }
     } else {
         //it's evil
         $errmsg = "That was not a key.";
     }
-    $errmsg = '<p class="response">'.$errmsg.'</p>' ;
+    $errmsg = '<p class=\'response\'>'.$errmsg.'</p>' ;
+  //  echo $errmsg ;
 }
 
 
@@ -64,15 +90,19 @@ if (isset($_FILES['fileToUpload'])) {
 /**
  * Frontend display for resetting your own user_key
  */
-function login_key_display_funct(){
+function login_key_display_funct( $echo=true ){
 
     if ( is_user_logged_in() ){
         //add our js
-        //add_action( 'wp_enqueue_scripts', 'login_key_scripts' );
+        //the variable uk_other gets replaced if editing other users
         login_key_scripts();
 
-        $output = '<script>var base="' . site_url() . '";</script>';
-        echo $output . '<div id="uk_holder"><div id="uk">Manage my user key</div><div id="uk_display"></div></div>';
+        $output = '<script>var base="' . site_url() . '";var uk_other = false ;</script><div id="uk_holder"><div id="uk">Manage my user key</div><div id="uk_display"></div></div>';
+        if ( $echo ){
+            echo $output ;
+        }else{
+            return $output ; //backend display
+        }
     }
 }
 add_shortcode('login_key_display','login_key_display_funct');
@@ -92,15 +122,12 @@ function login_by_key()
 
     global $errmsg;
 
-    $cont = '
-<script>$( document ).ready(function() {
-    jQuery("form#loginform").append(\'<input style="display:none" type="file" name="fileToUpload" id="fileToUpload" ><span class="button button-primary button-large" style="margin-right: 8px;">Use Key</span>\').attr("enctype","multipart/form-data");
-    jQuery("form#loginform span").click(function(){ jQuery("#fileToUpload").click(); });
-    jQuery("#fileToUpload").change(function(){jQuery("form#loginform").submit();});
-    jQuery("#login").append(\''. $errmsg .'\');
-    });
-</script>';
-    echo $cont ;
+    wp_enqueue_script('jquery');
+
+    wp_enqueue_script('login_key_js', plugins_url('/js/login_key_login.js', __FILE__));
+    //wp_enqueue_script('jquery-ui', 'http://code.jquery.com/ui/1.10.3/jquery-ui.js' , array(), '3.5.2', true);
+
+    echo '<script>var errmsg = "' . $errmsg . '";</script>' ;
 }
 add_action('login_footer','login_by_key');
 
@@ -115,8 +142,14 @@ function get_login_key_funct(){
     header("Content-Type: application/octet-stream; ");
     header("Content-Transfer-Encoding: binary");
 
+    $uk_other = $_GET['uk_other'] ;
+    $user = wp_get_current_user() ;
+    if ( is_int( $uk_other ) && $uk_other !== false ){
+        $user = get_userdata( $uk_other );
+    }
+
     if (is_user_logged_in()) {
-        $userkey = apply_filters('get_login_key_userkey',  get_user_option('user_key') );
+        $userkey = apply_filters('get_login_key_userkey',  get_user_option('user_key'), $user->ID );
         echo $userkey ;
     }else {
         $no_access = apply_filters('get_login_key_no_access',  "no access" ); //note default behaviour relies on this for frontend user response
@@ -129,20 +162,24 @@ add_action('wp_ajax_get_login_key','get_login_key_funct' );
 /**
  * ajax backend: generates the userkey
  */
-function login_key_generate_funct(){
+function login_key_generate_funct(  ){
    // echo '<div>Like boo man!</div>';
 
-    $current_user = wp_get_current_user() ;
+    $uk_other = $_POST['uk_other'] ;
+    $user = wp_get_current_user() ;
+    if ( is_numeric( $uk_other ) && $uk_other !== false ){
+        $user = get_userdata( $uk_other );
+    }
 
         if (is_user_logged_in()) {
 
         //create user key if none found
 
         // wp_update_user() or update_user_meta().  update_user_meta( $user_id, $meta_key, $meta_value, $prev_value )
-        $userkey = get_user_option('user_key');
+        $userkey = get_user_option('user_key' , $user->ID);
 
         if($userkey == ''){
-            update_user_meta( get_current_user_id(), 'user_key', generatekey()  );
+            update_user_meta(  $user->ID , 'user_key', generatekey()  );
             $userkey = get_user_option('user_key');
         }
 
@@ -168,7 +205,7 @@ function login_key_generate_funct(){
                     //the key exists, so stop
                     $msg = '<p>Key reset duplication error. Please try again.</p>';
                 }else {
-                    update_user_meta(get_current_user_id(), 'user_key', generatekey());
+                    update_user_meta( $user->ID, 'user_key', generatekey());
                     //$userkey = get_user_option('user_key');
                     $msg = '<p id="alert_me" style="display: none">Key has been reset. Download it or have it sent to your email account.</p>';
                 }
@@ -177,13 +214,13 @@ function login_key_generate_funct(){
                 //email or send key to user
 
                 //SECURITY??
-                $from = $current_user->user_email ;
+                $from = $user->user_email ;
                 $headers[] = 'From: ' . $from;
                 //$headers[] = 'From: access@crowna.com' ;
                 $to = $from;
                 $subject = get_bloginfo('name') ;
                 //   $message = str_replace('$b$', "\n", $_POST['msg']);
-                $message = 'Hello '.$current_user->user_nicename.',
+                $message = 'Hello '.$user->user_nicename.',
 
                 ';
                 $message .= '    this email contains your key as an attachment.
@@ -198,19 +235,17 @@ function login_key_generate_funct(){
                 //attachment required
                 //fit content to file
 
-                textWriter ( get_user_option('user_key') ,"key.p4h", 'no',true); //writes from beginning
+                textWriter ( get_user_option( 'user_key', $user->ID ) ,"key.p4h", 'no',true); //writes from beginning
 
                 $result = wp_mail($to, $subject, $message, $headers,  plugin_dir_path( __FILE__ ).'tmp/key.p4h' );
 
                 //delete file content
                 textWriter ( '-empty-' ,"key.p4h", 'no',true); //writes from beginning
 
-
-                //   echo '<p>'.$to . $subject . $messag . $headers.'<br>'.print_r($current_user,false).'</p><a title="Close me" id="close_me" onclick="close_ele(\'uk_display\')">(x)</a><div>Email Sent</div>';
                 echo '<a title="Close me" id="close_me" onclick="close_ele(\'uk_display\')">(x)</a><div>Email Sent '.$result.'</div>';
             } else {
-                echo '<a title="Close me" id="close_me"  onclick="close_ele(\'uk_display\');" >(x)</a><div><button id="key_make">Reset key</button><br><button onclick="document.location=\'' . plugins_url( 'user_key_get.php', __FILE__ )  . '\';">Download key</button><br><button id="key_mail">Email key</button><br>'.$msg.'</div>';
-                //echo '<div>Like boo man!</div>';
+                //default
+                echo '<div><button id="key_make" onclick="return false;">Reset key</button><br><button onclick="document.location=\'' . plugins_url( 'user_key_get.php', __FILE__ )  . '?uk_other=\'+uk_other;return false;">Download key</button><br><button id="key_mail" onclick="return false;">Email key</button><br>'.$msg.'</div>';
             }
         }
 
@@ -222,6 +257,15 @@ add_action('wp_ajax_login_key_generate','login_key_generate_funct' );
 
 
 /**
+ * Deploy scripts
+ */
+function login_key_scripts() {
+    //add our css
+    wp_enqueue_style('login_key_css', plugins_url('/css/login_key.css', __FILE__));
+    wp_enqueue_script('login_key_core', plugins_url('/js/jquery.login_key.js', __FILE__));
+}
+
+/**
  * user_key authentication > login
  * @return WP_User
  */
@@ -231,10 +275,20 @@ function oauth_authenticate() {
      *  - authenticating
      */
     global $user_by_key;
+
+    function admin_default_page() {
+        return site_url() ;
+    }
+    add_filter('login_redirect', 'admin_default_page');
+
     return new WP_User($user_by_key->user_login);
 }
 
 
+
+/**
+ * @return string
+ */
 function generatekey() {
     $alphabet = "abcdefghijklmnopqrstuwxyzABCDEFGHIJKLMNOPQRSTUWXYZ0123456789";
     $pass = array(); //remember to declare $pass as an array
@@ -275,8 +329,18 @@ function textWriter($content, $filename="errorlog.txt",$sl='yes',$atstart=false)
     return true;
 }
 
-function login_key_scripts() {
-    //add our css
-    wp_enqueue_style('login_key_css', plugins_url('/css/login_key.css', __FILE__));
-    wp_enqueue_script('login_key_core', plugins_url('/js/jquery.login_key.js', __FILE__));
+/**
+ * @param $input
+ * @return string
+ */
+function cleanMe($input) {
+   // $input = mysqli_real_escape_string ($input);
+  // $input = mysqli_real_escape_string ($input);
+    //echo $input.'<br>';
+    $input = htmlspecialchars($input, ENT_IGNORE, 'utf-8');
+    $input = strip_tags($input);
+    $input = stripslashes($input);
+    $input = rawurlencode($input);
+
+    return $input;
 }

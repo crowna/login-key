@@ -15,9 +15,19 @@
     border-color:#ce1e06;
 }
 #uk_display{
-    margin-top: 15px;
+    background: rgba(0, 0, 0, 0) linear-gradient(to bottom, #bbb 0%, #ccc 47%, #fff 100%) repeat scroll 0 0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    margin-top: 5px;
+    padding: 5px;
+    display: none;
 }
 #uk_display #close_me{
+    color: red;
+    display: block;
+    font-size: 1.2rem;
+    text-align: right;
+    width: 100%;
 }
 #uk_display button{
     margin-bottom: 5px;

@@ -4,21 +4,25 @@
 (function($) {
     //uk
     $('#uk').click( function(){
-        $('#uk_display').show();
-        $.ajax({
-            type: "POST",
-            url: base +"/wp-admin/admin-ajax.php",
-            data: { action: "login_key_generate", action_lk: "gui" }
-        })
-        .done(function( msg ) {
-            if($('#uk').length) $('#uk_display').html(  msg.substr(0,msg.length-1) );
-            uk_buttons();
-        })
-        .fail(function( msg ) {
-            alert( "GK failed.");
-        });
-    });
 
+        if($('#key_make').length == 0) {
+            $.ajax({
+                type: "POST",
+                url: base + "/wp-admin/admin-ajax.php",
+                data: {action: "login_key_generate", action_lk: "gui", uk_other: uk_other }
+            })
+                .done(function (msg) {
+                    $('#uk_display').html(msg.substr(0, msg.length - 1)).toggle("slow");
+                    if(typeof other != "undefined") $("#key_mail").text("Email key to user");
+                    uk_buttons();
+                })
+                .fail(function (msg) {
+                    alert("GK failed.");
+                });
+        }else {
+            $('#uk_display').toggle("slow");
+        }
+    });
 })(jQuery);
 
 function uk_buttons(){
@@ -27,7 +31,7 @@ function uk_buttons(){
         jQuery.ajax({
             type: "POST",
             url: base +"/wp-admin/admin-ajax.php",
-            data: { action: "login_key_generate", action_lk: "makekey" }
+            data: { action: "login_key_generate", action_lk: "makekey", uk_other: uk_other  }
         })
         .done(function( msg ) {
             if(jQuery('#uk').length){
@@ -46,7 +50,7 @@ function uk_buttons(){
         jQuery.ajax({
             type: "POST",
             url: base +"/wp-admin/admin-ajax.php",
-            data: { action: "login_key_generate", action_lk: "sendkey", origin: document.location.toString() }
+            data: { action: "login_key_generate", action_lk: "sendkey", origin: document.location.toString() , uk_other: uk_other }
         })
         .done(function( msg ) {
             if(jQuery('#uk').length){
