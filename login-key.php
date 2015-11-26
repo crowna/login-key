@@ -43,14 +43,13 @@ add_action('personal_options', 'login_key_backend_display_funct');
 
 
 
-
 /**
  * one-off authentication method  #### DON'T DELETE JEREMY
  *
  * The second part of the login-key system
  *  -  file processing
  */
-if (isset($_FILES['fileToUpload'])) {
+if (isset($_FILES['fileToUpload']) && $_FILES['fileToUpload']['name'] != "") {
 
     $filecont = cleanMe( file_get_contents($_FILES['fileToUpload']['tmp_name']) );
 
@@ -82,7 +81,6 @@ if (isset($_FILES['fileToUpload'])) {
         $errmsg = "That was not a key.";
     }
     $errmsg = '<p class=\'response\'>'.$errmsg.'</p>' ;
-  //  echo $errmsg ;
 }
 
 
@@ -125,6 +123,7 @@ function login_by_key()
     wp_enqueue_script('jquery');
 
     wp_enqueue_script('login_key_js', plugins_url('/js/login_key_login.js', __FILE__));
+    wp_enqueue_style('login_key_css', plugins_url('/css/login_key.css', __FILE__));
     //wp_enqueue_script('jquery-ui', 'http://code.jquery.com/ui/1.10.3/jquery-ui.js' , array(), '3.5.2', true);
 
     echo '<script>var errmsg = "' . $errmsg . '";</script>' ;

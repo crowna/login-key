@@ -32,3 +32,16 @@
 #uk_display button{
     margin-bottom: 5px;
 }
+.button-primary.use-key {
+    margin-right: 8px;
+}
+.response {
+    background-color: #fe9;
+    border: 1px solid #ccc;
+    box-shadow: 10px 10px 5px #888888;
+    border-radius: 5px;
+    color: red;
+    margin-top: 10px;
+    padding: 8px;
+}
+
