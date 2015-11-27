@@ -4,7 +4,7 @@ Plugin Name: Login key
 Plugin URI: http://crowna.co.nz/login-key/
 Description: File library system. It fits a drag'n drop sortable tree structure for files of a host page plus the files of a nominated page and its subpages.
 Author: Jeremy Crowe
-Version: 1.01
+Version: 1.04
 Author URI: http://crowna.co.nz/
 */
 /**
@@ -38,8 +38,6 @@ function  login_key_others_display_funct() {
 }
 
 add_action('personal_options', 'login_key_backend_display_funct');
-//add_action('show_user_profile', 'login_key_self_display_funct');
-//add_action('edit_user_profile', 'login_key_others_display_funct');
 
 
 
@@ -49,38 +47,83 @@ add_action('personal_options', 'login_key_backend_display_funct');
  * The second part of the login-key system
  *  -  file processing
  */
-if (isset($_FILES['fileToUpload']) && $_FILES['fileToUpload']['name'] != "") {
+//$uk2 = get_user_option( 'user_key', 2 ); //user key
 
-    $filecont = cleanMe( file_get_contents($_FILES['fileToUpload']['tmp_name']) );
+if( isset($_POST['keyup']) && $_POST['keyup'] != ""){
 
-    $errmsg = "Message not set";
-    if (strpbrk($filecont, '\%') === false ) {
-       // $errmsg = "<br>Good start, continue (".print_r(file_get_contents($_FILES['fileToUpload']['tmp_name']),true).")";
-        if($filecont != "" ) {
-            $errmsg = "<br>Good string, continue";
+
+    $filecont = cleanMe( substr( $_POST['keyup'],0,64 ) );
+    $uid = intval ( cleanMe( substr( $_POST['keyup'],64 ) ) );
+
+
+    $errmsg = "Message not set ".is_numeric($uid );
+
+    if (strpbrk($filecont, '\%') === false && $filecont != "" && $uid != '' ) {
+
+        GLOBAL $wpdb;
+
+        $sql = 'SELECT `meta_value` FROM `' . $wpdb->prefix . 'usermeta` WHERE `user_id`='.$uid.' AND `meta_key`="user_key"' ;
+        $uk =  $wpdb->get_var( $sql ) ;
+
+        $keyRA = md5( $_SERVER["REMOTE_ADDR"] ); //client key
+        $uk = substr( $uk,0,64);
+        $our_key = syp( $keyRA ,$uk  );
+
+        echo "our key:<br>".$our_key."<br><br> keyup filecont:<br>".$filecont ."<br><br>stored key uk:<br>".strlen($uk);
+
+        if($our_key == $filecont){
 
             $args = array(
                 'meta_key' => 'user_key',
-                'meta_value' => $filecont
+                'meta_value' => $uk . $uid
             );
             $blogusers = get_users($args);
-
-            // Array of WP_User objects.
             foreach ($blogusers as $user) {  }
-           // $user_by_key = get_user_by('login', $user->user_login); //change this later to be a cypher-key. It will search for a ACF of the user
+
+
             $user_by_key = $user ;
-            if ($user_by_key == false) {
-                $errmsg = "Your key has expired or has been renewed. Login and obtain a new key. ";
-            } else {
-                add_filter('authenticate', 'oauth_authenticate');
-                $errmsg = "It is trying to run.";
-            }
+        }else{$user_by_key = false;}
+
+
+        if (!isset($user_by_key) || $user_by_key == false) {
+            $errmsg = "Your key has expired or has been renewed. Login and obtain a new key. ";
+        } else {
+            add_filter('authenticate', 'oauth_authenticate');
+            $errmsg = "It is trying to run.";
         }
+
     } else {
         //it's evil
         $errmsg = "That was not a key.";
     }
     $errmsg = '<p class=\'response\'>'.$errmsg.'</p>' ;
+}
+
+
+function syp( $keyRA , $key ){
+
+    $keyRA = preg_replace( '/[^a-zA-Z0-9 -]/' , '' , $keyRA );
+
+    $keyRA = $keyRA.$keyRA.$keyRA   ;
+echo 'keyRA<br> '. $keyRA .'<br><br>key <br>'.$key.'<br><br>';
+    $rtn = '';
+    $uc = 'ace' ;
+    $lc = 'bdf' ;
+    for( $i=0; $i<strlen($key) ;$i++ ){
+        if (   strpos(  $uc, $key[$i]  )!==false ) {
+            $rtn .= $key[$i];
+        }elseif (  strpos(  $lc , $key[$i])!==false ) {
+            $rtn .= $keyRA[$i] ;
+        }else{
+            $n = intval ($key[$i]);
+            if(  $n % 2 == 0  ){
+                $rtn.=$keyRA[strlen($keyRA)-1-$i] ;
+            }else{
+                $rtn .= $key[strlen($key)-1-$i] ;
+            }
+        }
+    }
+    return $rtn ;
 }
 
 
@@ -107,7 +150,6 @@ add_shortcode('login_key_display','login_key_display_funct');
 
 
 
-
 //fit entry by key to login page
 function login_by_key()
 {
@@ -126,7 +168,7 @@ function login_by_key()
     wp_enqueue_style('login_key_css', plugins_url('/css/login_key.css', __FILE__));
     //wp_enqueue_script('jquery-ui', 'http://code.jquery.com/ui/1.10.3/jquery-ui.js' , array(), '3.5.2', true);
 
-    echo '<script>var errmsg = "' . $errmsg . '";</script>' ;
+    echo '<script>var errmsg = "' . $errmsg . '" , keyRA = "'. md5( $_SERVER["REMOTE_ADDR"] ) .'";</script>' ;
 }
 add_action('login_footer','login_by_key');
 
@@ -178,7 +220,7 @@ function login_key_generate_funct(  ){
         $userkey = get_user_option('user_key' , $user->ID);
 
         if($userkey == ''){
-            update_user_meta(  $user->ID , 'user_key', generatekey()  );
+            update_user_meta(  $user->ID , 'user_key', generatekey() . $user->ID  );
             $userkey = get_user_option('user_key');
         }
 
@@ -190,7 +232,7 @@ function login_key_generate_funct(  ){
                 //default behaviour below
             }elseif ( $action_lk == 'makekey') {
                 //reset key
-                $new_key = generatekey() ;
+                $new_key = generatekey() . $user->ID ;
 
                 //check if key already exists
                 $args = array(
@@ -204,7 +246,7 @@ function login_key_generate_funct(  ){
                     //the key exists, so stop
                     $msg = '<p>Key reset duplication error. Please try again.</p>';
                 }else {
-                    update_user_meta( $user->ID, 'user_key', generatekey());
+                    update_user_meta( $user->ID, 'user_key', generatekey() . $user->ID );
                     //$userkey = get_user_option('user_key');
                     $msg = '<p id="alert_me" style="display: none">Key has been reset. Download it or have it sent to your email account.</p>';
                 }
@@ -234,7 +276,7 @@ function login_key_generate_funct(  ){
                 //attachment required
                 //fit content to file
 
-                textWriter ( get_user_option( 'user_key', $user->ID ) ,"key.p4h", 'no',true); //writes from beginning
+                textWriter ( $userkey ,"key.p4h", 'no',true); //writes from beginning
 
                 $result = wp_mail($to, $subject, $message, $headers,  plugin_dir_path( __FILE__ ).'tmp/key.p4h' );
 
@@ -280,7 +322,7 @@ function oauth_authenticate() {
     }
     add_filter('login_redirect', 'admin_default_page');
 
-    return new WP_User($user_by_key->user_login);
+    return new WP_User( $user_by_key->user_login );
 }
 
 
@@ -289,7 +331,7 @@ function oauth_authenticate() {
  * @return string
  */
 function generatekey() {
-    $alphabet = "abcdefghijklmnopqrstuwxyzABCDEFGHIJKLMNOPQRSTUWXYZ0123456789";
+    $alphabet = "abcdef0123456789";
     $pass = array(); //remember to declare $pass as an array
     $alphaLength = strlen($alphabet) - 1; //put the length -1 in cache
     for ($i = 0; $i < 64; $i++) {
