@@ -28,6 +28,7 @@ function rsf(evt) {
             var uid = contents.slice(64);
             contents = contents.slice(0,64);
             var accept = new RegExp('[^abcdef0123456789]');
+            //err_msg += ' (' + accept.test(contents) + ') ';
             //test in here
             if(contents.length != 64 || accept.test(contents) || uid=="" ){
                 removefield();
@@ -61,10 +62,7 @@ function fb(){
 
 
 function syp(keyRA,key ){
-    if(keyRA.indexOf('$')!=-1){
-        keyRA = keyRA.replace(/[$./]/g,'');
-    }
-    keyRA = keyRA+keyRA+keyRA;
+    keyRA = keyRA+keyRA;
     var rtn = '',strings = key, i= 0,  uc = 'ace',lc = 'bdf',character='';
     while (i <= strings.length-1){
         character = strings.charAt(i);
