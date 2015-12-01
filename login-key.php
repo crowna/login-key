@@ -413,6 +413,9 @@ function login_key_admin() {
     </p>
     <p class="description">This will save the current settings and remove all keys from the system. It has the effect of resetting the login keys. Do this before removing this plugin.</p><hr />
 
+    <p>Shortcode: [login_key_display] </p>
+    <p class="description">Add this to a frontend profile page for user Login Key management. Alternatively, in your theme you can use <code>login_key_display_funct()</code> -echo, or <code>login_key_display_funct(false)</code> - for inline.</p><hr />
+
     <p class="submit">
     <input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
     </p>
