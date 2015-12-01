@@ -336,7 +336,7 @@ function oauth_authenticate() {
 
     function login_key_admin_default_page() {
         $lk_default_start = get_option('lk_default_start') ;
-        $url ='';
+        $url = site_url() .'/wp-admin';
         if ( $lk_default_start == '/'){
             $url = site_url() ;
         }elseif( substr($lk_default_start,0,1) == '/'){
@@ -390,8 +390,8 @@ function textWriter($content, $filename="errorlog.txt",$sl='yes',$atstart=false)
         exit;
     }
     if($sl=="yes")$content = addslashes($content);
-    $res1=fwrite( $fp , $content );
-    $res2=fclose( $fp );
+    fwrite( $fp , $content );
+    fclose( $fp );
     return true;
 }
 
