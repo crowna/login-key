@@ -321,6 +321,123 @@ function login_key_generate_funct(  ){
 add_action('wp_ajax_login_key_generate','login_key_generate_funct' );
 
 
+
+/************   admin menus and setting options *******/
+
+
+// setting link on plugin page
+add_filter( 'plugin_action_links_' . plugin_basename(__FILE__), 'login_key_action_links' );
+function login_key_action_links( $links ) {
+    $links[] = '<a href="'. esc_url( get_admin_url(null, 'options-general.php?page=menu-login-key-handle') ) .'">Settings</a>';
+    return $links;
+}
+
+// setting->Login Key options
+add_action('admin_menu', 'lk_add_pages');
+function lk_add_pages() {
+    // Add a new top-level menu (ill-advised):
+    add_options_page(__('Login Key','menu-login-key'), __('Login Key','menu-login-key'), 'manage_options', 'menu-login-key-handle', 'login_key_admin' );
+}
+
+
+/**
+ * handles plugin options
+ */
+function login_key_admin() {
+    //must check that the user has the required capability
+    if (!current_user_can('manage_options'))
+    {
+        wp_die( __('You do not have sufficient permissions to access this page.') );
+    }
+
+    // variables for the field and option names
+    $hidden_field_name = 'lk_submit_hidden';
+
+    $default_opt_name = 'lk_default_start';
+    $default_field_name = $default_opt_name;
+    $default_opt_val = get_option( $default_opt_name ); //read val from db
+
+    $disable_opt_name = 'lk_disable';
+    $disable_field_name = $disable_opt_name ;
+    $disable_opt_val = get_option( $disable_opt_name ); //read val from db
+
+    $reset_field_name = 'lk_reset';
+
+
+    // See if the user has posted us some information
+    // If they did, this hidden field will be set to 'Y'
+    if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'Y' ) {
+
+        $default_opt_val = $_POST[ $default_field_name ];// Read default-page posted value
+        update_option( $default_opt_name, $default_opt_val );// Save the posted value in the database
+
+        if( isset($_POST[ $disable_field_name ]) )
+            $disable_opt_val = 'checked';// Read disable posted value
+        else
+            $disable_opt_val = '';// Read disable posted value
+        update_option( $disable_opt_name, $disable_opt_val );// Save in database
+
+        // Put a "settings saved" message on the screen
+
+        $msg = __('settings saved.', 'menu-login-key' );
+
+        if( isset($_POST[ $reset_field_name ]) ) {
+            login_key_remove_keys();
+            $msg = '<span style="color:red;">All keys have been removed!</span>';
+        }
+        echo '<div class="updated"><p><strong>'. $msg .'</strong></p></div>';
+    }
+
+    // Now display the settings editing screen
+    echo '<div class="wrap">';
+    echo "<h2>" . __( 'Login Key Plugin Settings', 'menu-login-key' ) . "</h2>";
+    ?>
+
+    <form name="form1" method="post" action="">
+    <input type="hidden" name="<?php echo $hidden_field_name; ?>" value="Y">
+
+    <p><?php _e("Default start page:", 'menu-login-key' ); ?>
+    <input type="text" name="<?php echo $default_field_name; ?>" value="<?php echo $default_opt_val; ?>" size="20">
+    </p>
+    <p class="description">This sets the return page after successfully logging in with a login key. Left blank will result in the Dashboard being displayed, "/" will display the start page and "/about" will display the root page with the slug "about". This option won't work if you have an override in your theme or another plugin using the filter 'login_key_admin_default_page_replace'</p>
+    <hr />
+
+    <p><?php _e("Disable login key:", 'menu-login-key' ); ?>
+    <input type="checkbox" name="<?php echo $disable_field_name; ?>" <?php echo $disable_opt_val; ?> >
+    </p>
+    <p class="description">Switch off the Login Key plugin but keep all keys intact.</p>
+    <hr />
+
+    <p><?php _e("Remove all login key:", 'menu-login-key' ); ?>
+    <input type="submit" name="<?php echo $reset_field_name; ?>"  class="button-primary" value="<?php _e("REMOVE KEYS", 'menu-login-key' ); ?>" onclick="return window.confirm('Are you sure?');">
+    </p>
+    <p class="description">This will save the current settings and remove all keys from the system. It has the effect of resetting the login keys. Do this before removing this plugin.</p><hr />
+
+    <p class="submit">
+    <input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
+    </p>
+
+    </form>
+    </div>
+
+    <?php
+}
+
+function login_keys_run_keys(){
+    if(get_option( 'lk_disable' ) == "checked" )
+        return false;
+    return true;
+}
+function login_key_remove_keys(){
+    //  delete_option( 'user_key' );
+
+    GLOBAL $wpdb;
+
+    $sql = 'DELETE FROM `' . $wpdb->prefix . 'usermeta` WHERE `meta_key`="user_key"';
+    $wpdb->query( $sql ) ;
+}
+
+
 /****************    support functions   *********************/
 
 /**
@@ -429,111 +546,3 @@ add_filter( 'login_key_admin_default_page_replace', 'redirect_after_login' );
  */
 
 /**development**/
-
-
-// Hook for adding admin menus
-add_action('admin_menu', 'lk_add_pages');
-function lk_add_pages() {
-    // Add a new top-level menu (ill-advised):
-    add_menu_page(__('Login Key','menu-login-key'), __('Login Key','menu-login-key'), 'manage_options', 'menu-login-key-handle', 'login_key_admin' );
-}
-
-
-function login_key_admin() {
-    //must check that the user has the required capability
-    if (!current_user_can('manage_options'))
-    {
-        wp_die( __('You do not have sufficient permissions to access this page.') );
-    }
-
-    // variables for the field and option names
-    $hidden_field_name = 'lk_submit_hidden';
-
-    $default_opt_name = 'lk_default_start';
-    $default_field_name = $default_opt_name;
-    $default_opt_val = get_option( $default_opt_name ); //read val from db
-
-    $disable_opt_name = 'lk_disable';
-    $disable_field_name = $disable_opt_name ;
-    $disable_opt_val = get_option( $disable_opt_name ); //read val from db
-
-    $reset_field_name = 'lk_reset';
-
-
-    // See if the user has posted us some information
-    // If they did, this hidden field will be set to 'Y'
-    if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'Y' ) {
-
-        $default_opt_val = $_POST[ $default_field_name ];// Read default-page posted value
-        update_option( $default_opt_name, $default_opt_val );// Save the posted value in the database
-
-        if( isset($_POST[ $disable_field_name ]) )
-            $disable_opt_val = 'checked';// Read disable posted value
-        else
-            $disable_opt_val = '';// Read disable posted value
-        update_option( $disable_opt_name, $disable_opt_val );// Save in database
-
-        // Put a "settings saved" message on the screen
-
-        $msg = __('settings saved.', 'menu-login-key' );
-
-        if( isset($_POST[ $reset_field_name ]) ) {
-            login_key_remove_keys();
-            $msg = '<span style="color:red;">All keys have been removed!</span>';
-        }
-
-        echo '<div class="updated"><p><strong>'. $msg .'</strong></p></div>';
-
-
-    }
-
-    // Now display the settings editing screen
-
-    echo '<div class="wrap">';
-    echo "<h2>" . __( 'Login Key Plugin Settings', 'menu-login-key' ) . "</h2>";
-    ?>
-
-    <form name="form1" method="post" action="">
-    <input type="hidden" name="<?php echo $hidden_field_name; ?>" value="Y">
-
-    <p><?php _e("Default start page:", 'menu-login-key' ); ?>
-    <input type="text" name="<?php echo $default_field_name; ?>" value="<?php echo $default_opt_val; ?>" size="20">
-    </p>
-    <p class="description">This sets the return page after successfully logging in with a login key. Left blank will result in the Dashboard being displayed, "/" will display the start page and "/about" will display the root page with the slug "about". This option won't work if you have an override in your theme or another plugin using the filter 'login_key_admin_default_page_replace'</p>
-    <hr />
-
-    <p><?php _e("Disable login key:", 'menu-login-key' ); ?>
-    <input type="checkbox" name="<?php echo $disable_field_name; ?>" <?php echo $disable_opt_val; ?> >
-    </p>
-    <p class="description">Switch off the Login Key plugin but keep all keys intact.</p>
-    <hr />
-    
-    <p><?php _e("Remove all login key:", 'menu-login-key' ); ?>
-    <input type="submit" name="<?php echo $reset_field_name; ?>"  class="button-primary" value="<?php _e("REMOVE KEYS", 'menu-login-key' ); ?>" onclick="return window.confirm('Are you sure?');">
-    </p>
-    <p class="description">This will save the current settings and remove all keys from the system. It has the effect of resetting the login keys. Do this before removing this plugin.</p><hr />
-
-    <p class="submit">
-    <input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
-    </p>
-
-    </form>
-    </div>
-
-    <?php
-
-}
-
-function login_keys_run_keys(){
-    if(get_option( 'lk_disable' ) == "checked" )
-        return false;
-    return true;
-}
-function login_key_remove_keys(){
-  //  delete_option( 'user_key' );
-
-    GLOBAL $wpdb;
-
-    $sql = 'DELETE FROM `' . $wpdb->prefix . 'usermeta` WHERE `meta_key`="user_key"';
-    $wpdb->query( $sql ) ;
-}
