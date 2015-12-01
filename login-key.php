@@ -2,7 +2,7 @@
 /*
 Plugin Name: Login key
 Plugin URI: http://crowna.co.nz/login-key/
-Description: File library system. It fits a drag'n drop sortable tree structure for files of a host page plus the files of a nominated page and its subpages.
+Description: Alternative method to log in. This allows you to use a key file rather than Login name and password. It uses better security than the standard WordPress login process via one-way encryption.
 Author: Jeremy Crowe
 Version: 1.04
 Author URI: http://crowna.co.nz/
@@ -34,9 +34,11 @@ Author URI: http://crowna.co.nz/
  * //current_user_can('edit_users')
  */
 function  login_key_backend_display_funct() {
-    $uk_other = isset($_GET['user_id']) ? $_GET['user_id'] : wp_get_current_user()->ID ;
-    $add_script =  wp_get_current_user()->ID != $uk_other ? '(function($) {$("#uk").text("Manage user\'s key");})(jQuery);var other=true;' : '';
-    echo '<div id="uk_backend">' . login_key_display_funct( $uk_other ) . '</div><script>uk_other = ' . $uk_other . '; '.$add_script.'</script>';
+    if( login_keys_run_keys() ){
+        $uk_other = isset($_GET['user_id']) ? $_GET['user_id'] : wp_get_current_user()->ID ;
+        $add_script =  wp_get_current_user()->ID != $uk_other ? '(function($) {$("#uk").text("Manage user\'s key");})(jQuery);var other=true;' : '';
+        echo '<div id="uk_backend">' . login_key_display_funct( $uk_other ) . '</div><script>uk_other = ' . $uk_other . '; '.$add_script.'</script>';
+    }
 }
 add_action('personal_options', 'login_key_backend_display_funct');
 
@@ -53,7 +55,7 @@ add_action('personal_options', 'login_key_backend_display_funct');
  * Accessing $_POST is used because, if successful, this process
  *  will logon the user before the conventional login page process is fired.
  */
-if( isset($_POST['keyup']) && $_POST['keyup'] != "" && strlen($_POST['keyup']) >= 65){
+if( isset($_POST['keyup']) && $_POST['keyup'] != "" && strlen($_POST['keyup']) >= 65 && login_keys_run_keys() ){
 
 
     $filecont = cleanMe( substr( $_POST['keyup'],0,64 ) );
@@ -149,7 +151,7 @@ function syp( $keyRA , $key ){
  */
 function login_key_display_funct( $echo=true ){
 
-    if ( is_user_logged_in() ){
+    if ( is_user_logged_in() && login_keys_run_keys() ){
         //add our js
         //the variable uk_other gets replaced if editing other users
         login_key_scripts();
@@ -160,6 +162,8 @@ function login_key_display_funct( $echo=true ){
         }else{
             return $output ; //backend display
         }
+    }else{
+        return ''; //empty for diabled state
     }
 }
 add_shortcode('login_key_display','login_key_display_funct');
@@ -191,14 +195,16 @@ function login_by_key()
      *  jQuery will attempt to read that key, encrypt it against the parameter keyRA, then upload the key
      */
 
-    global $errmsg;
+    if ( login_keys_run_keys() ){
+        global $errmsg;
 
-    wp_enqueue_script('jquery');
-    wp_enqueue_script('login_key_js', plugins_url('/js/login_key_login.js', __FILE__));
-    wp_enqueue_style('login_key_css', plugins_url('/css/login_key.css', __FILE__));
-    //wp_enqueue_script('jquery-ui', 'http://code.jquery.com/ui/1.10.3/jquery-ui.js' , array(), '3.5.2', true);
+        wp_enqueue_script('jquery');
+        wp_enqueue_script('login_key_js', plugins_url('/js/login_key_login.js', __FILE__));
+        wp_enqueue_style('login_key_css', plugins_url('/css/login_key.css', __FILE__));
+        //wp_enqueue_script('jquery-ui', 'http://code.jquery.com/ui/1.10.3/jquery-ui.js' , array(), '3.5.2', true);
 
-    echo '<script>var errmsg = "' . $errmsg . '" , keyRA = "'. md5( $_SERVER["REMOTE_ADDR"] ) .'";</script>' ;
+        echo '<script>var errmsg = "' . $errmsg . '" , keyRA = "'. md5( $_SERVER["REMOTE_ADDR"] ) .'";</script>' ;
+    }
 }
 add_action('login_footer','login_by_key');
 
@@ -227,13 +233,14 @@ function login_key_generate_funct(  ){
      * This first section allows admin to manage the keys of others.
      * The inclusion of the field uk_other was done by jquery
      */
+
     $uk_other = $_POST['uk_other'] ;
     $user = wp_get_current_user() ;
     if ( is_numeric( $uk_other ) && $uk_other !== false && current_user_can('edit_users') ){ //only if user can edit other users
         $user = get_userdata( $uk_other );
     }
 
-    if (is_user_logged_in()) {
+    if ( is_user_logged_in() && login_keys_run_keys() ) {
 
         //get  user key
         $userkey = get_user_option('user_key' , $user->ID);
@@ -309,6 +316,7 @@ function login_key_generate_funct(  ){
     }else{
         echo "no access ";
     }
+
 }
 add_action('wp_ajax_login_key_generate','login_key_generate_funct' );
 
@@ -327,7 +335,14 @@ function oauth_authenticate() {
     global $user_by_key; //if not found then nothing happens
 
     function login_key_admin_default_page() {
-        $rtn = apply_filters('login_key_admin_default_page_replace', site_url() );
+        $lk_default_start = get_option('lk_default_start') ;
+        $url ='';
+        if ( $lk_default_start == '/'){
+            $url = site_url() ;
+        }elseif( substr($lk_default_start,0,1) == '/'){
+            $url = site_url() . $lk_default_start ;
+        }
+        $rtn = apply_filters('login_key_admin_default_page_replace', $url  );
         return $rtn  ;
     }
     add_filter('login_redirect', 'login_key_admin_default_page');
@@ -412,3 +427,113 @@ function redirect_after_login($url){
 add_filter( 'login_key_admin_default_page_replace', 'redirect_after_login' );
 
  */
+
+/**development**/
+
+
+// Hook for adding admin menus
+add_action('admin_menu', 'lk_add_pages');
+function lk_add_pages() {
+    // Add a new top-level menu (ill-advised):
+    add_menu_page(__('Login Key','menu-login-key'), __('Login Key','menu-login-key'), 'manage_options', 'menu-login-key-handle', 'login_key_admin' );
+}
+
+
+function login_key_admin() {
+    //must check that the user has the required capability
+    if (!current_user_can('manage_options'))
+    {
+        wp_die( __('You do not have sufficient permissions to access this page.') );
+    }
+
+    // variables for the field and option names
+    $hidden_field_name = 'lk_submit_hidden';
+
+    $default_opt_name = 'lk_default_start';
+    $default_field_name = $default_opt_name;
+    $default_opt_val = get_option( $default_opt_name ); //read val from db
+
+    $disable_opt_name = 'lk_disable';
+    $disable_field_name = $disable_opt_name ;
+    $disable_opt_val = get_option( $disable_opt_name ); //read val from db
+
+    $reset_field_name = 'lk_reset';
+
+
+    // See if the user has posted us some information
+    // If they did, this hidden field will be set to 'Y'
+    if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'Y' ) {
+
+        $default_opt_val = $_POST[ $default_field_name ];// Read default-page posted value
+        update_option( $default_opt_name, $default_opt_val );// Save the posted value in the database
+
+        if( isset($_POST[ $disable_field_name ]) )
+            $disable_opt_val = 'checked';// Read disable posted value
+        else
+            $disable_opt_val = '';// Read disable posted value
+        update_option( $disable_opt_name, $disable_opt_val );// Save in database
+
+        // Put a "settings saved" message on the screen
+
+        $msg = __('settings saved.', 'menu-login-key' );
+
+        if( isset($_POST[ $reset_field_name ]) ) {
+            login_key_remove_keys();
+            $msg = '<span style="color:red;">All keys have been removed!</span>';
+        }
+
+        echo '<div class="updated"><p><strong>'. $msg .'</strong></p></div>';
+
+
+    }
+
+    // Now display the settings editing screen
+
+    echo '<div class="wrap">';
+    echo "<h2>" . __( 'Login Key Plugin Settings', 'menu-login-key' ) . "</h2>";
+    ?>
+
+    <form name="form1" method="post" action="">
+    <input type="hidden" name="<?php echo $hidden_field_name; ?>" value="Y">
+
+    <p><?php _e("Default start page:", 'menu-login-key' ); ?>
+    <input type="text" name="<?php echo $default_field_name; ?>" value="<?php echo $default_opt_val; ?>" size="20">
+    </p>
+    <p class="description">This sets the return page after successfully logging in with a login key. Left blank will result in the Dashboard being displayed, "/" will display the start page and "/about" will display the root page with the slug "about". This option won't work if you have an override in your theme or another plugin using the filter 'login_key_admin_default_page_replace'</p>
+    <hr />
+
+    <p><?php _e("Disable login key:", 'menu-login-key' ); ?>
+    <input type="checkbox" name="<?php echo $disable_field_name; ?>" <?php echo $disable_opt_val; ?> >
+    </p>
+    <p class="description">Switch off the Login Key plugin but keep all keys intact.</p>
+    <hr />
+    
+    <p><?php _e("Remove all login key:", 'menu-login-key' ); ?>
+    <input type="submit" name="<?php echo $reset_field_name; ?>"  class="button-primary" value="<?php _e("REMOVE KEYS", 'menu-login-key' ); ?>" onclick="return window.confirm('Are you sure?');">
+    </p>
+    <p class="description">This will save the current settings and remove all keys from the system. It has the effect of resetting the login keys. Do this before removing this plugin.</p><hr />
+
+    <p class="submit">
+    <input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
+    </p>
+
+    </form>
+    </div>
+
+    <?php
+
+}
+
+function login_keys_run_keys(){
+    if(get_option( 'lk_disable' ) == "checked" )
+        return false;
+    return true;
+}
+function login_key_remove_keys(){
+  //  delete_option( 'user_key' );
+
+    GLOBAL $wpdb;
+
+    $sql = 'DELETE FROM `' . $wpdb->prefix . 'usermeta` WHERE `meta_key`="user_key"';
+    $wpdb->query( $sql ) ;
+}
