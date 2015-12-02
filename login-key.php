@@ -6,6 +6,7 @@ Description: Alternative method to log in. This allows you to use a key file rat
 Author: Jeremy Crowe
 Version: 1.06
 Author URI: http://crowna.co.nz/
+Text Domain: menu-login-key
 */
 /**
  * Created by PhpStorm.
@@ -21,7 +22,7 @@ Author URI: http://crowna.co.nz/
  *
  * register_activation_hook( __FILE__, array( 'login-key_Init', 'on_activate' ) );
  * register_deactivation_hook( __FILE__, array( 'login-key_Init', 'on_deactivate' ) );
- * register_uninstall_hook( __FILE__, array( 'login-key_Init', 'on_uninstall' ) );
+ * register_uninstall_hook( __FILE__, array( 'login-key_Init', 'on_uninstall' ) ); #JC handled by uninstall.php
  */
 
 
@@ -33,14 +34,14 @@ Author URI: http://crowna.co.nz/
  *
  * //current_user_can('edit_users')
  */
-function  login_key_backend_display_funct() {
+function  login_key_backend_personal_options() {
     if( login_keys_run_keys() ){
         $uk_other = isset($_GET['user_id']) ? $_GET['user_id'] : wp_get_current_user()->ID ;
         $add_script =  wp_get_current_user()->ID != $uk_other ? '(function($) {$("#uk").text("Manage user\'s key");})(jQuery);var other=true;' : '';
         echo '<div id="uk_backend">' . login_key_display_funct( $uk_other ) . '</div><script>uk_other = ' . $uk_other . '; '.$add_script.'</script>';
     }
 }
-add_action('personal_options', 'login_key_backend_display_funct');
+add_action('personal_options', 'login_key_backend_personal_options');
 
 
 
@@ -58,8 +59,8 @@ add_action('personal_options', 'login_key_backend_display_funct');
 if( isset($_POST['keyup']) && $_POST['keyup'] != "" && strlen($_POST['keyup']) >= 65 && login_keys_run_keys() ){
 
 
-    $filecont = cleanMe( substr( $_POST['keyup'],0,64 ) );
-    $uid = intval ( cleanMe( substr( $_POST['keyup'],64 ) ) );
+    $filecont = lk_cleanMe( substr( $_POST['keyup'],0,64 ) );
+    $uid = intval ( lk_cleanMe( substr( $_POST['keyup'],64 ) ) );
 
 
     if (strpbrk($filecont, '\%') === false && $filecont != "" && strlen($filecont) == 64 && $uid != '' ) {
@@ -77,7 +78,7 @@ if( isset($_POST['keyup']) && $_POST['keyup'] != "" && strlen($_POST['keyup']) >
             $uk = substr( $uk,0,64);
 
             $keyRA = md5( $_SERVER["REMOTE_ADDR"] ); //client key
-            $our_key = syp( $keyRA ,$uk  );
+            $our_key = lk_encrypt( $keyRA ,$uk  );
 
             if($our_key == $filecont){
 
@@ -95,7 +96,7 @@ if( isset($_POST['keyup']) && $_POST['keyup'] != "" && strlen($_POST['keyup']) >
             if (!isset($user_by_key) || $user_by_key == false) {
                 $errmsg .= "Your key has expired or has been renewed. Login and obtain a new key. ";
             } else {
-                add_filter('authenticate', 'oauth_authenticate');
+                add_filter('authenticate', 'lk_authenticate');
                 $errmsg .= "It is trying to run.";
             }
         }
@@ -108,39 +109,6 @@ if( isset($_POST['keyup']) && $_POST['keyup'] != "" && strlen($_POST['keyup']) >
 }
 
 
-/**
- * makes an encypted string based on two strings
- * @param $keyRA
- * @param $key
- * @return string
- */
-function syp( $keyRA , $key ){
-
-    $keyRA = preg_replace( '/[^abcdef0123456789]/' , '' , $keyRA );
-
-    $keyRA = $keyRA . $keyRA   ;
-    //echo 'keyRA<br> '. $keyRA .'<br><br>key <br>'.$key.'<br><br>';
-    $rtn = '';
-    $uc = 'ace' ;
-    $lc = 'bdf' ;
-    for( $i=0; $i<strlen($key) ;$i++ ){
-        if (   strpos(  $uc, $key[$i]  )!==false ) {
-            $rtn .= $key[$i];
-        }elseif (  strpos(  $lc , $key[$i])!==false ) {
-            $rtn .= $keyRA[$i] ;
-        }else{
-            $n = intval ($key[$i]);
-            if(  $n % 2 == 0  ){
-                $rtn.=$keyRA[strlen($keyRA)-1-$i] ;
-            }else{
-                $rtn .= $key[strlen($key)-1-$i] ;
-            }
-        }
-    }
-    return $rtn ;
-}
-
-
 
 /**
  * Frontend display of initial link to "Manage my user key"
@@ -149,7 +117,7 @@ function syp( $keyRA , $key ){
  * @param bool $echo
  * @return string
  */
-function login_key_display_funct( $echo=true ){
+function login_key_shortcode_pesonal_potions( $echo=true ){
 
     if ( is_user_logged_in() && login_keys_run_keys() ){
         //add our js
@@ -163,10 +131,10 @@ function login_key_display_funct( $echo=true ){
             return $output ; //backend display
         }
     }else{
-        return ''; //empty for diabled state
+        return ''; //empty for disabled state
     }
 }
-add_shortcode('login_key_display','login_key_display_funct');
+add_shortcode('login_key_display','login_key_shortcode_pesonal_potions');
 /**
  * Deploy scripts
  */
@@ -183,7 +151,7 @@ function login_key_scripts() {
  * inclusion in the login page
  * fit field "Use Key" to login page
  */
-function login_by_key()
+function login_key_logon()
 {
     /**
      * displays access by key on the login page
@@ -206,7 +174,7 @@ function login_by_key()
         echo '<script>var errmsg = "' . $errmsg . '" , keyRA = "'. md5( $_SERVER["REMOTE_ADDR"] ) .'";</script>' ;
     }
 }
-add_action('login_footer','login_by_key');
+add_action('login_footer','login_key_logon');
 
 /**
  * ajax response supplies the user key file for download storage: see user_key_get.php
@@ -247,7 +215,7 @@ function login_key_generate_funct(  ){
 
         //create user key if none found
         if($userkey == ''){
-            update_user_meta(  $user->ID , 'user_key', generatekey() . $user->ID  );
+            update_user_meta(  $user->ID , 'user_key', lk_generatekey() . $user->ID  );
             $userkey = get_user_option('user_key');
         }
 
@@ -260,7 +228,7 @@ function login_key_generate_funct(  ){
                 //default behaviour below
             }elseif ( $action_lk == 'makekey') { //reset key
 
-                $new_key = generatekey() . $user->ID ;
+                $new_key = lk_generatekey() . $user->ID ;
 
                 //check if key already exists
                 $args = array(
@@ -274,7 +242,7 @@ function login_key_generate_funct(  ){
                     //the key exists, so stop
                     $msg = '<p>Key reset duplication error. Please try again.</p>';
                 }else{
-                    update_user_meta( $user->ID, 'user_key', generatekey() . $user->ID );
+                    update_user_meta( $user->ID, 'user_key', $new_key );
                     $msg = '<p id="alert_me" style="display: none">Key has been reset. Download it or have it sent to your email account.</p>';
                 }
             }
@@ -299,13 +267,13 @@ function login_key_generate_funct(  ){
 
                 //attachment required so make file
                 //fit content to temp file
-                textWriter ( $userkey ,"key.p4h", 'no',true); //writes from beginning
+                lk_textWriter ( $userkey ,"key.p4h", 'no',true); //writes from beginning
 
                 //assemble and send email
                 $result = wp_mail($to, $subject, $message, $headers,  plugin_dir_path( __FILE__ ).'tmp/key.p4h' );
 
                 //delete content from temp file
-                textWriter ( '-empty-' ,"key.p4h", 'no',true); //writes from beginning
+                lk_textWriter ( '-empty-' ,"key.p4h", 'no',true); //writes from beginning
 
                 echo '<a title="Close me" id="close_me" onclick="close_ele(\'uk_display\')">(x)</a><div>Email Sent '.$result.'</div>';
             } else {
@@ -326,15 +294,15 @@ add_action('wp_ajax_login_key_generate','login_key_generate_funct' );
 
 
 // setting link on plugin page
-add_filter( 'plugin_action_links_' . plugin_basename(__FILE__), 'login_key_action_links' );
-function login_key_action_links( $links ) {
+add_filter( 'plugin_action_links_' . plugin_basename(__FILE__), 'login_key_plugin_action_links' );
+function login_key_plugin_action_links( $links ) {
     $links[] = '<a href="'. esc_url( get_admin_url(null, 'options-general.php?page=menu-login-key-handle') ) .'">Settings</a>';
     return $links;
 }
 
 // setting->Login Key options
-add_action('admin_menu', 'lk_add_pages');
-function lk_add_pages() {
+add_action('admin_menu', 'login_key_admin_menu');
+function login_key_admin_menu() {
     // Add a new top-level menu (ill-advised):
     add_options_page(__('Login Key','menu-login-key'), __('Login Key','menu-login-key'), 'manage_options', 'menu-login-key-handle', 'login_key_admin' );
 }
@@ -383,7 +351,7 @@ function login_key_admin() {
 
         if( isset($_POST[ $reset_field_name ]) ) {
             login_key_remove_keys();
-            $msg = '<span style="color:red;">All keys have been removed!</span>';
+            $msg = '<span style="color:red;">' . __('All keys have been removed!', 'menu-login-key') . '"</span>';
         }
         echo '<div class="updated"><p><strong>'. $msg .'</strong></p></div>';
     }
@@ -399,22 +367,22 @@ function login_key_admin() {
     <p><?php _e("Default start page:", 'menu-login-key' ); ?>
     <input type="text" name="<?php echo $default_field_name; ?>" value="<?php echo $default_opt_val; ?>" size="20">
     </p>
-    <p class="description">This sets the return page after successfully logging in with a login key. Left blank will result in the Dashboard being displayed, "/" will display the start page and "/about" will display the root page with the slug "about". This option won't work if you have an override in your theme or another plugin using the filter 'login_key_admin_default_page_replace'</p>
+    <p class="description"><?php _e("This sets the return page after successfully logging in with a login key. Left blank will result in the Dashboard being displayed, \"/\" will display the start page and \"/about\" will display the root page with the slug \"about\". This option won't work if you have an override in your theme or another plugin using the filter 'login_key_admin_default_page_replace'", 'menu-login-key' ); ?></p>
     <hr />
 
     <p><?php _e("Disable login key:", 'menu-login-key' ); ?>
     <input type="checkbox" name="<?php echo $disable_field_name; ?>" <?php echo $disable_opt_val; ?> >
     </p>
-    <p class="description">Switch off the Login Key plugin but keep all keys intact.</p>
+    <p class="description"><?php _e("Switch off the Login Key plugin but keep all keys intact.", 'menu-login-key' ); ?></p>
     <hr />
 
     <p><?php _e("Remove all login key:", 'menu-login-key' ); ?>
-    <input type="submit" name="<?php echo $reset_field_name; ?>"  class="button-primary" value="<?php _e("REMOVE KEYS", 'menu-login-key' ); ?>" onclick="return window.confirm('Are you sure?');">
+    <input type="submit" name="<?php echo $reset_field_name; ?>"  class="button-primary" value="<?php _e("REMOVE KEYS", 'menu-login-key' ); ?>" onclick="return window.confirm('<?php _e("Are you sure?", 'menu-login-key' ); ?>');">
     </p>
-    <p class="description">This will save the current settings and remove all keys from the system. It has the effect of resetting the login keys. Do this before removing this plugin.</p><hr />
+    <p class="description"><?php _e("This will save the current settings and remove all keys from the system. It has the effect of resetting the login keys. Do this before removing this plugin.", 'menu-login-key' ); ?></p><hr />
 
-    <p>Shortcode: [login_key_display] </p>
-    <p class="description">Add this to a frontend profile page for user Login Key management. Alternatively, in your theme you can use <code>login_key_display_funct()</code> -echo, or <code>login_key_display_funct(false)</code> - for inline.</p><hr />
+    <p>Shortcodes: </p>
+    <p class="description"><code>[login_key_display]</code> <?php _e("Add this to a frontend profile page for user Login Key management. Alternatively, in your theme you can use <code>login_key_display_funct()</code> - output, or <code>login_key_display_funct(false)</code> - for inline.", 'menu-login-key' ); ?></p><hr />
 
     <p class="submit">
     <input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
@@ -443,11 +411,44 @@ function login_key_remove_keys(){
 
 /****************    support functions   *********************/
 
+
+/**
+ * makes a basic encrypted string based on two strings
+ * @param $keyRA
+ * @param $key
+ * @return string
+ */
+function lk_encrypt( $keyRA , $key ){
+
+    $keyRA = preg_replace( '/[^abcdef0123456789]/' , '' , $keyRA );
+
+    $keyRA = $keyRA . $keyRA   ;
+    //echo 'keyRA<br> '. $keyRA .'<br><br>key <br>'.$key.'<br><br>';
+    $rtn = '';
+    $uc = 'ace' ;
+    $lc = 'bdf' ;
+    for( $i=0; $i<strlen($key) ;$i++ ){
+        if (   strpos(  $uc, $key[$i]  )!==false ) {
+            $rtn .= $key[$i];
+        }elseif (  strpos(  $lc , $key[$i])!==false ) {
+            $rtn .= $keyRA[$i] ;
+        }else{
+            $n = intval ($key[$i]);
+            if(  $n % 2 == 0  ){
+                $rtn.=$keyRA[strlen($keyRA)-1-$i] ;
+            }else{
+                $rtn .= $key[strlen($key)-1-$i] ;
+            }
+        }
+    }
+    return $rtn ;
+}
+
 /**
  * user_key authentication > login
  * @return WP_User
  */
-function oauth_authenticate() {
+function lk_authenticate() {
     /**
      *  The third part of the  login-key system
      *  - authenticating
@@ -475,7 +476,7 @@ function oauth_authenticate() {
 /**
  * @return string
  */
-function generatekey() {
+function lk_generatekey() {
     $alphabet = "abcdef0123456789";
     $pass = array(); //remember to declare $pass as an array
     $alphaLength = strlen($alphabet) - 1; //put the length -1 in cache
@@ -494,7 +495,7 @@ function generatekey() {
  * @param bool $atstart
  * @return bool
  */
-function textWriter($content, $filename="errorlog.txt",$sl='yes',$atstart=false){
+function lk_textWriter($content, $filename="errorlog.txt",$sl='yes',$atstart=false){
     // writes to a text file
 
     //$filename = get_theme_root().'/'.get_template() .'/'.$filename;
@@ -502,7 +503,7 @@ function textWriter($content, $filename="errorlog.txt",$sl='yes',$atstart=false)
 
     $fp = fopen("$filename",($atstart?"w":"a")); // at start or append
     if (!$fp){
-        echo  "{".$_SERVER['DOCUMENT_ROOT']."}<p><strong>Sorry, your order can not be processed at this point in time. Please try again later.</strong></p>File access to ".$filename." denied!</body></html>";
+        echo  "{".$_SERVER['DOCUMENT_ROOT']."}<p><strong>Sorry, your request can not be processed at this point in time. Please try again later.</strong></p>File access to ".$filename." denied!</body></html>";
         exit;
     }
     if (!$content){
@@ -519,7 +520,7 @@ function textWriter($content, $filename="errorlog.txt",$sl='yes',$atstart=false)
  * @param $input
  * @return string
  */
-function cleanMe($input) {
+function lk_cleanMe($input) {
     $input = htmlspecialchars($input, ENT_IGNORE, 'utf-8');
     $input = strip_tags($input);
     $input = stripslashes($input);
