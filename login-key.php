@@ -38,7 +38,7 @@ function  login_key_backend_personal_options() {
     if( login_keys_run_keys() ){
         $uk_other = isset($_GET['user_id']) ? $_GET['user_id'] : wp_get_current_user()->ID ;
         $add_script =  wp_get_current_user()->ID != $uk_other ? '(function($) {$("#uk").text("Manage user\'s key");})(jQuery);var other=true;' : '';
-        echo '<div id="uk_backend">' . login_key_display_funct( $uk_other ) . '</div><script>uk_other = ' . $uk_other . '; '.$add_script.'</script>';
+        echo '<div id="uk_backend">' . login_key_shortcode_pesonal_options( false ) . '</div><script>uk_other = ' . $uk_other . '; '.$add_script.'</script>';
     }
 }
 add_action('personal_options', 'login_key_backend_personal_options');
@@ -117,7 +117,7 @@ if( isset($_POST['keyup']) && $_POST['keyup'] != "" && strlen($_POST['keyup']) >
  * @param bool $echo
  * @return string
  */
-function login_key_shortcode_pesonal_potions( $echo=true ){
+function login_key_shortcode_pesonal_options( $echo=true ){
 
     if ( is_user_logged_in() && login_keys_run_keys() ){
         //add our js
@@ -134,7 +134,7 @@ function login_key_shortcode_pesonal_potions( $echo=true ){
         return ''; //empty for disabled state
     }
 }
-add_shortcode('login_key_display','login_key_shortcode_pesonal_potions');
+add_shortcode('login_key_display','login_key_shortcode_pesonal_options');
 /**
  * Deploy scripts
  */
@@ -382,7 +382,7 @@ function login_key_admin() {
     <p class="description"><?php _e("This will save the current settings and remove all keys from the system. It has the effect of resetting the login keys. Do this before removing this plugin.", 'menu-login-key' ); ?></p><hr />
 
     <p>Shortcodes: </p>
-    <p class="description"><code>[login_key_display]</code> <?php _e("Add this to a frontend profile page for user Login Key management. Alternatively, in your theme you can use <code>login_key_display_funct()</code> - output, or <code>login_key_display_funct(false)</code> - for inline.", 'menu-login-key' ); ?></p><hr />
+    <p class="description"><code>[login_key_display]</code> <?php _e("Add this to a frontend profile page for user Login Key management. Alternatively, in your theme you can use <code>login_key_shortcode_pesonal_options()</code> - output, or <code>login_key_shortcode_pesonal_options(false)</code> - for inline.", 'menu-login-key' ); ?></p><hr />
 
     <p class="submit">
     <input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
