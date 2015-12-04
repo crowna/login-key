@@ -4,7 +4,7 @@ Plugin Name: Login key
 Plugin URI: http://crowna.co.nz/login-key/
 Description: Alternative method to log in. This allows you to use a key file rather than Login name and password. It uses better security than the standard WordPress login process via one-way encryption.
 Author: Jeremy Crowe
-Version: 1.06
+Version: 1.07
 Author URI: http://crowna.co.nz/
 Text Domain: menu-login-key
 */
@@ -15,7 +15,7 @@ Text Domain: menu-login-key
  * Time: 12:25
  */
 
-$lk_ver = '1.06';  //this plugin version - used for updating.
+$lk_ver = '1.07';  //this plugin version - used for updating.
 
 /**
  * Handles Activation/Deactivation/Install
