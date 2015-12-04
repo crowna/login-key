@@ -9,13 +9,12 @@
 if ( !defined( 'WP_UNINSTALL_PLUGIN' ) )
     exit();
 
-$default_opt_name = 'lk_default_start';
-delete_option( $default_opt_name );
-delete_site_option( $default_opt_name );
+$lk_ops = array('lk_allow_shortcode','lk_default_start','lk_disable');
 
-$disable_opt_name = 'lk_disable';
-delete_option( $disable_opt_name );
-delete_site_option( $disable_opt_name );
+for ($i = 0; $i < count($lk_ops); $i++) {
+    delete_option( $lk_ops[$i] );
+    delete_site_option( $lk_ops[$i] );
+}
 
 
 //delete related user data

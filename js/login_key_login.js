@@ -1,19 +1,20 @@
 /**
  * Created by crowe on 25/11/2015.
+ *
+ * version 1.07
  */
 (function($) {
-    fb();
+    klj_fb();
     jQuery("#login").append(errmsg );
 })(jQuery);
 
 
+
 /**
- * cypher check
- *
- *
- *
+ * process key file, encode, send
+ * @param evt
  */
-function rsf(evt) {
+function klj_rsf(evt) {
     var f = evt.target.files[0],
         err_msg = "Failed to load file or file corrupt:";
 
@@ -28,60 +29,58 @@ function rsf(evt) {
             var uid = contents.slice(64);
             contents = contents.slice(0,64);
             var accept = new RegExp('[^abcdef0123456789]');
-            //err_msg += ' (' + accept.test(contents) + ') ';
-            //test in here
             if(contents.length != 64 || accept.test(contents) || uid=="" ){
-                removefield();
-                fb();
+                klj_removefield();
+                klj_fb();
                 err.text(err_msg +' 2');
             }else{
-                removefield();
-                jQuery("form#loginform").append('<input value="'+syp( keyRA ,contents )+uid+'" type="hidden" name="keyup" id="keyup" >');
+                klj_removefield();
+                jQuery("form#loginform").append('<input value="'+klj_syp( keyRA ,contents )+uid+'" type="hidden" name="keyup" id="keyup" >');
                 jQuery("form#loginform").submit();
             }
         };
         r.readAsText(f); //don't remove
     } else {
-        removefield();
-        fb();
+        klj_removefield();
+        klj_fb();
         err.text(err_msg +' 1');
     }
 }
 
-function removefield(){
-    //reset field
+/**
+ * remove field and element prior to posting
+ */
+function klj_removefield(){
     jQuery("#fileToUpload").remove();
     jQuery(".use-key").remove();
 }
-function fb(){
-    //make file field plus set behaviour
+
+/**
+ * make file field plus set behaviour
+ */
+function klj_fb(){
     jQuery("form#loginform").append('<input style="display:none" type="file" name="fileToUpload" id="fileToUpload" ><span class="button button-primary button-large use-key">Use Key</span>').attr("enctype","multipart/form-data");
     jQuery("form#loginform span").click(function(){ jQuery("#fileToUpload").click(); });
-    jQuery("#fileToUpload").change(rsf);
+    jQuery("#fileToUpload").change(klj_rsf);
 }
 
-
-function syp(keyRA,key ){
-    keyRA = keyRA+keyRA;
-    var rtn = '',strings = key, i= 0,  uc = 'ace',lc = 'bdf',character='';
-    while (i <= strings.length-1){
-        character = strings.charAt(i);
-        if (!isNaN(character * 1)){
-            if((character * 1) % 2 == 0){
-                rtn+=keyRA[keyRA.length-1-i];
-            }else{
-                rtn+=key[key.length-1-i];
-            }
-        }else{
-            if (uc.indexOf(character)!=-1) {
-                rtn+=key[i];
-            }
-            if (lc.indexOf(character)!=-1){
-                rtn+=keyRA[i];
-            }
-        }
-        i++;
+/**
+ *
+ * @param r {string} salt from server
+ * @param k {string} saved key
+ * @returns {string} one-way encryption
+ */
+function klj_syp(r,k ){
+    var a = 'abcdef0123456789',
+        rtn='';
+    for(var i=0;i<k.length;i++){
+        j = a.indexOf(k[i]) + i;
+        j = j<=63 ? j :(j-63);
+        j = a.indexOf(r[j]) + i;
+        j = j<=63 ? j :(j-63);
+        j = a.indexOf(k[j]) + i;
+        j = j<=63 ? j :(j-63);
+        rtn += r[j];
     }
     return rtn ;
 }
-

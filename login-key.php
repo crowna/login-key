@@ -11,10 +11,11 @@ Text Domain: menu-login-key
 /**
  * Created by PhpStorm.
  * User: crowe
- * Date: 24/11/2015
+ * Date: 24/10/2015
  * Time: 12:25
  */
 
+$lk_ver = '1.06';  //this plugin version - used for updating.
 
 
 /**
@@ -77,7 +78,11 @@ if( isset($_POST['keyup']) && $_POST['keyup'] != "" && strlen($_POST['keyup']) >
         }else{
             $uk = substr( $uk,0,64);
 
-            $keyRA = md5( $_SERVER["REMOTE_ADDR"] ); //client key
+            if (!session_id()) {
+                session_start();
+            }
+            $keyRA = $_SESSION['lk_salt'];
+
             $our_key = lk_encrypt( $keyRA ,$uk  );
 
             if($our_key == $filecont){
@@ -134,7 +139,12 @@ function login_key_shortcode_pesonal_options( $echo=true ){
         return ''; //empty for disabled state
     }
 }
-add_shortcode('login_key_display','login_key_shortcode_pesonal_options');
+if( login_keys_allow_shortcode() ){ //admin option
+    add_shortcode('login_key_display','login_key_shortcode_pesonal_options');
+}else{
+    add_shortcode('login_key_display', function (){return '';} ); // shortcode not allowed so return nothing
+}
+
 /**
  * Deploy scripts
  */
@@ -148,7 +158,6 @@ function login_key_scripts() {
 
 
 /**
- * inclusion in the login page
  * fit field "Use Key" to login page
  */
 function login_key_logon()
@@ -160,18 +169,23 @@ function login_key_logon()
      *  - key upload form
      *
      * When the user selects a key to upload
-     *  jQuery will attempt to read that key, encrypt it against the parameter keyRA, then upload the key
+     *  jQuery will attempt to read that key, encrypt it against the hidden variable keyRA, then upload the key
      */
 
     if ( login_keys_run_keys() ){
         global $errmsg;
 
+
         wp_enqueue_script('jquery');
         wp_enqueue_script('login_key_js', plugins_url('/js/login_key_login.js', __FILE__));
         wp_enqueue_style('login_key_css', plugins_url('/css/login_key.css', __FILE__));
-        //wp_enqueue_script('jquery-ui', 'http://code.jquery.com/ui/1.10.3/jquery-ui.js' , array(), '3.5.2', true);
 
-        echo '<script>var errmsg = "' . $errmsg . '" , keyRA = "'. md5( $_SERVER["REMOTE_ADDR"] ) .'";</script>' ;
+        if (!session_id()) {
+            session_start();
+        }
+        $_SESSION['lk_salt'] = lk_generatekey() ;
+
+        echo '<script>var errmsg = "' . $errmsg . '" , keyRA = "'. $_SESSION['lk_salt'] .'";</script>' ;
     }
 }
 add_action('login_footer','login_key_logon');
@@ -300,7 +314,7 @@ function login_key_plugin_action_links( $links ) {
     return $links;
 }
 
-// setting->Login Key options
+// Settings->Login Key options
 add_action('admin_menu', 'login_key_admin_menu');
 function login_key_admin_menu() {
     // Add a new top-level menu (ill-advised):
@@ -329,6 +343,10 @@ function login_key_admin() {
     $disable_field_name = $disable_opt_name ;
     $disable_opt_val = get_option( $disable_opt_name ); //read val from db
 
+    $prevent_sc_opt_name = 'lk_allow_shortcode';
+    $prevent_sc_field_name = $prevent_sc_opt_name ;
+    $prevent_sc_opt_val = get_option( $prevent_sc_opt_name ); //read val from db
+
     $reset_field_name = 'lk_reset';
 
 
@@ -344,6 +362,12 @@ function login_key_admin() {
         else
             $disable_opt_val = '';// Read disable posted value
         update_option( $disable_opt_name, $disable_opt_val );// Save in database
+
+        if( isset($_POST[ $prevent_sc_field_name ]) )
+            $prevent_sc_opt_val = 'checked';// Read disable posted value
+        else
+            $prevent_sc_opt_val = '';// Read disable posted value
+        update_option( $prevent_sc_opt_name, $prevent_sc_opt_val );// Save in database
 
         // Put a "settings saved" message on the screen
 
@@ -382,7 +406,13 @@ function login_key_admin() {
     <p class="description"><?php _e("This will save the current settings and remove all keys from the system. It has the effect of resetting the login keys. Do this before removing this plugin.", 'menu-login-key' ); ?></p><hr />
 
     <p>Shortcodes: </p>
-    <p class="description"><code>[login_key_display]</code> <?php _e("Add this to a frontend profile page for user Login Key management. Alternatively, in your theme you can use <code>login_key_shortcode_pesonal_options()</code> - output, or <code>login_key_shortcode_pesonal_options(false)</code> - for inline.", 'menu-login-key' ); ?></p><hr />
+    <p><?php _e("Allow shortcode usage:", 'menu-login-key' ); ?>
+    <input type="checkbox" name="<?php echo $prevent_sc_field_name; ?>" <?php echo $prevent_sc_opt_val; ?> >
+    </p>
+    <p class="description"><?php _e("This allows the shortcode, <code>[login_key_display]</code>, to be used by authors for a frontend profile page with Login Key management. The default is to disable the shortcode for security reasons.", 'menu-login-key' ); ?></p>
+    <p>
+    <?php _e("Alternatively, in your theme you can use <code>login_key_shortcode_pesonal_options()</code> - output, or <code>login_key_shortcode_pesonal_options(false)</code> - for inline.", 'menu-login-key' ); ?>
+    </p><hr />
 
     <p class="submit">
     <input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
@@ -399,6 +429,11 @@ function login_keys_run_keys(){
         return false;
     return true;
 }
+function login_keys_allow_shortcode(){
+    if(get_option( 'lk_allow_shortcode' ) == "checked" )
+        return true;
+    return false;
+}
 function login_key_remove_keys(){
     //  delete_option( 'user_key' );
 
@@ -408,38 +443,45 @@ function login_key_remove_keys(){
     $wpdb->query( $sql ) ;
 }
 
+/**
+ * check for plugin update at non-standard location
+ *
+ * dependant on local file: wp_plugin_autoupdate.php
+ * dependant on target file: update.php
+ */
+add_action('init', 'login_key_update');
+function login_key_update()
+{
+    require_once ('includes/wp_plugin_autoupdate.php');
+
+    global $lk_ver;
+
+    $lk_plugin_current_version = $lk_ver;
+    $lk_plugin_remote_path = 'http://crowna.co.nz/files/login-key/update.php';
+    $lk_plugin_slug = plugin_basename(__FILE__);
+    new wp_auto_update ($lk_plugin_current_version, $lk_plugin_remote_path, $lk_plugin_slug);
+}
 
 /****************    support functions   *********************/
 
 
 /**
- * makes a basic encrypted string based on two strings
- * @param $keyRA
- * @param $key
+ * returns a basic encrypted string based on two strings
+ * @param $r
+ * @param $k
  * @return string
  */
-function lk_encrypt( $keyRA , $key ){
-
-    $keyRA = preg_replace( '/[^abcdef0123456789]/' , '' , $keyRA );
-
-    $keyRA = $keyRA . $keyRA   ;
-    //echo 'keyRA<br> '. $keyRA .'<br><br>key <br>'.$key.'<br><br>';
+function lk_encrypt( $r , $k ){
     $rtn = '';
-    $uc = 'ace' ;
-    $lc = 'bdf' ;
-    for( $i=0; $i<strlen($key) ;$i++ ){
-        if (   strpos(  $uc, $key[$i]  )!==false ) {
-            $rtn .= $key[$i];
-        }elseif (  strpos(  $lc , $key[$i])!==false ) {
-            $rtn .= $keyRA[$i] ;
-        }else{
-            $n = intval ($key[$i]);
-            if(  $n % 2 == 0  ){
-                $rtn.=$keyRA[strlen($keyRA)-1-$i] ;
-            }else{
-                $rtn .= $key[strlen($key)-1-$i] ;
-            }
-        }
+    $a = 'abcdef0123456789';
+    for($i=0;$i<strlen($k);$i++){
+        $j = strpos($a,$k[$i])+$i;// a.indexOf(k[i]) + i;
+        $j = $j<=63 ? $j :($j-63);
+        $j = strpos($a,$r[$j])+$i;
+        $j = $j<=63 ? $j :($j-63);
+        $j = strpos($a,$k[$j])+$i;
+        $j = $j<=63 ? $j :($j-63);
+        $rtn .= $r[$j];
     }
     return $rtn ;
 }
@@ -474,6 +516,7 @@ function lk_authenticate() {
 
 
 /**
+ * returns a 64 character random string
  * @return string
  */
 function lk_generatekey() {
@@ -489,6 +532,7 @@ function lk_generatekey() {
 
 
 /**
+ * writes a file in the server
  * @param $content
  * @param string $filename
  * @param string $sl
@@ -517,6 +561,8 @@ function lk_textWriter($content, $filename="errorlog.txt",$sl='yes',$atstart=fal
 }
 
 /**
+ * string cleaner
+ * This is a little excessive
  * @param $input
  * @return string
  */
