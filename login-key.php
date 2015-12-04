@@ -17,7 +17,6 @@ Text Domain: menu-login-key
 
 $lk_ver = '1.06';  //this plugin version - used for updating.
 
-
 /**
  * Handles Activation/Deactivation/Install
  *
@@ -78,10 +77,12 @@ if( isset($_POST['keyup']) && $_POST['keyup'] != "" && strlen($_POST['keyup']) >
         }else{
             $uk = substr( $uk,0,64);
 
+            $er_old = error_reporting(0);
             if (!session_id()) {
                 session_start();
             }
             $keyRA = $_SESSION['lk_salt'];
+            error_reporting($er_old);
 
             $our_key = lk_encrypt( $keyRA ,$uk  );
 
@@ -99,16 +100,16 @@ if( isset($_POST['keyup']) && $_POST['keyup'] != "" && strlen($_POST['keyup']) >
 
 
             if (!isset($user_by_key) || $user_by_key == false) {
-                $errmsg .= "Your key has expired or has been renewed. Login and obtain a new key. ";
+                $errmsg .= __("Your key has expired or has been renewed. Login and obtain a new key. ", 'menu-login-key' ) ;
             } else {
                 add_filter('authenticate', 'lk_authenticate');
-                $errmsg .= "It is trying to run.";
+                $errmsg .= __("It is trying to run.", 'menu-login-key' );
             }
         }
 
     } else {
         //it's evil
-        $errmsg = "That was not a key.";
+        $errmsg = __("That was not a key.", 'menu-login-key' );
     }
     $errmsg = '<p class=\'response\'>'.$errmsg.'</p>' ;
 }
@@ -180,10 +181,12 @@ function login_key_logon()
         wp_enqueue_script('login_key_js', plugins_url('/js/login_key_login.js', __FILE__));
         wp_enqueue_style('login_key_css', plugins_url('/css/login_key.css', __FILE__));
 
+        $er_old = error_reporting(0);
         if (!session_id()) {
             session_start();
         }
         $_SESSION['lk_salt'] = lk_generatekey() ;
+        error_reporting($er_old);
 
         echo '<script>var errmsg = "' . $errmsg . '" , keyRA = "'. $_SESSION['lk_salt'] .'";</script>' ;
     }
@@ -254,10 +257,10 @@ function login_key_generate_funct(  ){
                 // Array of WP_User objects.
                 if(count($blogusers)!=0){
                     //the key exists, so stop
-                    $msg = '<p>Key reset duplication error. Please try again.</p>';
+                    $msg = '<p>'.__("Key reset duplication error. Please try again.", 'menu-login-key' ) .'</p>';
                 }else{
                     update_user_meta( $user->ID, 'user_key', $new_key );
-                    $msg = '<p id="alert_me" style="display: none">Key has been reset. Download it or have it sent to your email account.</p>';
+                    $msg = '<p id="alert_me" style="display: none">'. __("Key has been reset. Download it or have it sent to your email account.", 'menu-login-key' ) .'</p>';
                 }
             }
             if ( $action_lk == 'sendkey') { //email key to user
@@ -329,7 +332,7 @@ function login_key_admin() {
     //must check that the user has the required capability
     if (!current_user_can('manage_options'))
     {
-        wp_die( __('You do not have sufficient permissions to access this page.') );
+        wp_die( __('You do not have sufficient permissions to access this page.', 'menu-login-key' )  );
     }
 
     // variables for the field and option names
@@ -551,7 +554,7 @@ function lk_textWriter($content, $filename="errorlog.txt",$sl='yes',$atstart=fal
         exit;
     }
     if (!$content){
-        echo "<p><strong>Sorry, your order can not be processed at this point in time due to <ul>no content details</ul>. Please try again later.</strong></p></body></html>";
+        echo "<p><strong>Sorry, your request can not be processed at this point in time due to <ul>no content details</ul>. Please try again later.</strong></p></body></html>";
         exit;
     }
     if($sl=="yes")$content = addslashes($content);
