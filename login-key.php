@@ -4,7 +4,7 @@ Plugin Name: Login key
 Plugin URI: http://crowna.co.nz/login-key/
 Description: Alternative method to log in. This allows you to use a key file rather than Login name and password. It uses better security than the standard WordPress login process via one-way encryption.
 Author: Jeremy Crowe
-Version: 1.07
+Version: 1.08
 Author URI: http://crowna.co.nz/
 Text Domain: menu-login-key
 */
@@ -15,7 +15,12 @@ Text Domain: menu-login-key
  * Time: 12:25
  */
 
-$lk_ver = '1.07';  //this plugin version - used for updating.
+$lk_ver = '1.08';  //this plugin version - used for updating.
+
+if (!session_id()) {
+    session_start();
+}
+
 
 /**
  * Handles Activation/Deactivation/Install
@@ -77,12 +82,7 @@ if( isset($_POST['keyup']) && $_POST['keyup'] != "" && strlen($_POST['keyup']) >
         }else{
             $uk = substr( $uk,0,64);
 
-            $er_old = error_reporting(0);
-            if (!session_id()) {
-                session_start();
-            }
             $keyRA = $_SESSION['lk_salt'];
-            error_reporting($er_old);
 
             $our_key = lk_encrypt( $keyRA ,$uk  );
 
@@ -181,12 +181,7 @@ function login_key_logon()
         wp_enqueue_script('login_key_js', plugins_url('/js/login_key_login.js', __FILE__));
         wp_enqueue_style('login_key_css', plugins_url('/css/login_key.css', __FILE__));
 
-        $er_old = error_reporting(0);
-        if (!session_id()) {
-            session_start();
-        }
         $_SESSION['lk_salt'] = lk_generatekey() ;
-        error_reporting($er_old);
 
         echo '<script>var errmsg = "' . $errmsg . '" , keyRA = "'. $_SESSION['lk_salt'] .'";</script>' ;
     }
